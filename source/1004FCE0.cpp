@@ -2,19 +2,24 @@
 #include "CBase64Code.h"
 #include "ida_def.h"
 #include "stdio.h"
-#include "api.h"
+
+#include <IPHlpApi.h>  
+#include <stdio.h>
 #include <assert.h>
+
+#include "api.h"
+
 
 char g_sAppPath[250] = {0};
 
-char* _GetAppPath()
+char* __stdcall _GetModulePath(HMODULE h)
 {
 	if (strlen(g_sAppPath) > 1)
 	{
 		return g_sAppPath;
 	}
 
-	::GetModuleFileNameA(NULL, g_sAppPath, 250);
+	::GetModuleFileNameA(h, g_sAppPath, 250);
 
 	for (int i = strlen(g_sAppPath) - 1; i > 0; i--)
 	{
@@ -27,6 +32,96 @@ char* _GetAppPath()
 	return g_sAppPath;
 } 
 
+
+bool getAdapterState(DWORD index)
+{
+	MIB_IFROW Info;    // 存放获取到的Adapter参数
+	memset(&Info, 0, sizeof(MIB_IFROW));
+	Info.dwIndex = index; // dwIndex是需要获取的Adapter的索引，可以通过GetAdaptersInfo和其他相关函数获取
+	if (GetIfEntry(&Info) != NOERROR)
+	{
+		return false;
+	}
+	if (Info.dwOperStatus == IF_OPER_STATUS_NON_OPERATIONAL
+		|| Info.dwOperStatus == IF_OPER_STATUS_UNREACHABLE
+		|| Info.dwOperStatus == IF_OPER_STATUS_DISCONNECTED
+
+		|| Info.dwOperStatus == IF_OPER_STATUS_CONNECTING)
+		return false;
+	else if (Info.dwOperStatus == IF_OPER_STATUS_OPERATIONAL
+
+		|| Info.dwOperStatus == IF_OPER_STATUS_CONNECTED)
+		return true;
+
+	return false;
+}
+
+bool __stdcall getLocalInfo(char * mac, char * ipMe)
+{
+	IP_ADAPTER_INFO IOInfo[20];
+	PIP_ADAPTER_INFO pIOInfo = NULL;
+	DWORD Result = 0;
+	unsigned long nLen = sizeof(IOInfo);
+
+	Result = GetAdaptersInfo(IOInfo, &nLen);
+	pIOInfo = &IOInfo[0];
+	bool bGetOK = false;
+	while (pIOInfo)
+	{
+		IP_ADDR_STRING *pIpAddrString = &(pIOInfo->IpAddressList);
+		if (bGetOK || !getAdapterState(pIOInfo->Index))
+		{
+			//网络未连接
+			pIOInfo = pIOInfo->Next;
+			continue;
+		}
+
+		{	
+			if (/*strstr(pIOInfo->Description, "PCI")>0 &&*/ pIOInfo->Type == MIB_IF_TYPE_ETHERNET) //有线网可用时直接返回
+			{
+				bGetOK = true;
+			}	
+			else if (pIOInfo->Type == 71)	//无线网络
+			{
+				bGetOK = true;
+			}
+
+			if (bGetOK)
+			{
+				//仅考虑有线网络与无线网络
+				if (ipMe)
+				{	
+					strcpy(ipMe, pIpAddrString->IpAddress.String);
+				}
+		
+				sprintf(mac, "%2x%2x%2x%2x%2x%2x", pIOInfo->Address[0], pIOInfo->Address[1], pIOInfo->Address[2],
+					pIOInfo->Address[3], pIOInfo->Address[4], pIOInfo->Address[5]);
+			}
+		}
+
+		pIOInfo = pIOInfo->Next;
+	}
+
+	return bGetOK;
+}
+
+time_t __stdcall StringToDatetime(char *str)  
+{  
+	tm tm_;  
+	int year, month, day, hour, minute,second;  
+	sscanf(str,"%d-%d-%d %d:%d:%d", &year, &month, &day, &hour, &minute, &second);  
+	tm_.tm_year  = year-1900;  
+	tm_.tm_mon   = month-1;  
+	tm_.tm_mday  = day;  
+	tm_.tm_hour  = hour;  
+	tm_.tm_min   = minute;  
+	tm_.tm_sec   = second;  
+	tm_.tm_isdst = 0;  
+   
+	time_t t_ = mktime(&tm_); //已经减了8个时区  
+	return t_; //秒时间  
+}  
+
 class CDataReaderImpl
 {
 public:
@@ -35,7 +130,7 @@ public:
 		m_pBuffer = NULL;
 		m_dwBaseAddr = 0x100f0000;
 		char sFile[250];
-		strcpy(sFile, _GetAppPath());
+		strcpy(sFile, _GetModulePath());
 		strcat(sFile, "EarthbinData.bin");
 
 		FILE * fp = fopen(sFile, "rb");
@@ -72,6 +167,8 @@ public:
 		}
 		return NULL;
 	}
+
+	bool IsOk(){return m_pBuffer != 0;}
 
 protected:
 	BYTE * m_pBuffer;
@@ -1043,10 +1140,18 @@ int __stdcall sub_1001F610(int a2, const char *pInputStr, char *sKey)
 
 int __stdcall decodeData(char * sOutBuffer, const char *pInputStr, char *sKey)
 {
-	return sub_1001F960((int)sOutBuffer, pInputStr, sKey);
+	if (g_fileReader.IsOk())
+	{	
+		return sub_1001F960((int)sOutBuffer, pInputStr, sKey);
+	}
+	return -1;
 }
 
 int __stdcall encodeData(char * sOutBuffer, const char *pInputStr, char *sKey)
 {
-	return sub_1001F610((int)sOutBuffer, pInputStr, sKey);
+	if (g_fileReader.IsOk())
+	{
+		return sub_1001F610((int)sOutBuffer, pInputStr, sKey);
+	}
+	return -1;
 }
