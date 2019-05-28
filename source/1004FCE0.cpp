@@ -6,7 +6,8 @@
 #include <IPHlpApi.h>  
 #include <stdio.h>
 #include <assert.h>
-
+#include <time.h> 
+#include <process.h>
 #include "api.h"
 
 
@@ -678,6 +679,7 @@ int __stdcall sub_1001F400(int a1, int a2, int a3)
 // 关键函数*****
 int __stdcall sub_1001F960(int a3, const char *sEncodeData, char *sKeyString)
 {
+#ifdef CHECKLIC_MODE
 	char *v3; // esi
 	int v4; // ebp
 	int v5; // edi
@@ -837,6 +839,10 @@ LABEL_13:
 	delete [] v8;
 	LOBYTE(v50) = 0;
 	return v29;
+#else
+	assert(0);
+	return 0;
+#endif
 }
 
 
@@ -955,6 +961,7 @@ int __stdcall toBase64String_1000F200(_BYTE *a1, int a2, unsigned int a3)
 
 int __stdcall sub_1001F610(int a2, const char *pInputStr, char *sKey)
 {
+#ifdef MAKELIC_MODE
 	int v4; // edx
 	signed int v5; // ecx
 	int v6; // esi
@@ -1134,6 +1141,10 @@ int __stdcall sub_1001F610(int a2, const char *pInputStr, char *sKey)
 	LOBYTE(v63) = 0;
 //	nullsub_1(&v41);
 	return v49;
+#else
+	assert(0);
+	return 0;
+#endif
 }
 
 
@@ -1154,4 +1165,178 @@ int __stdcall encodeData(char * sOutBuffer, const char *pInputStr, char *sKey)
 		return sub_1001F610((int)sOutBuffer, pInputStr, sKey);
 	}
 	return -1;
+}
+
+
+
+int __stdcall checkLicFile(char * sLicFile, const char *pKey1, const char *pKey2)
+{
+	char sMacMe[100] = {0};
+	getLocalInfo(sMacMe);
+
+
+	char sTime[100];
+	char sEncodes[1024];
+	FILE * fp = fopen(sLicFile, "rb");
+	if (fp)
+	{
+		fseek(fp, 0, SEEK_END);
+		long llen = ftell(fp);
+		char * sfileData = new char[llen];
+		fseek(fp, 0, SEEK_SET);
+		fread(sfileData, 1, llen, fp);
+		fclose(fp);
+
+		char * sFind = sfileData;
+
+		memset(sTime, 0, 100);
+		memset(sEncodes, 0, 1024);
+		do 
+		{
+			char * sf1 = strstr(sFind, "\r\n");
+			if (!sf1)
+			{
+				sf1 = strstr(sFind, "\n\r");
+			}
+			if (sf1)
+			{
+				int ncnt = sf1 - sFind;
+				memcpy(sTime, sFind, ncnt);
+				sFind += (ncnt + 2);		
+				sf1 = strstr(sFind, "\r\n");
+				if (sf1)
+				{
+					ncnt = sf1 - sFind;
+					sFind += (ncnt + 2);
+					memcpy(sEncodes, sFind, ncnt);
+					sf1 = strstr(sFind, "\r\n");
+					if (sf1)
+					{
+					}
+				}
+				else
+				{
+					ncnt = llen - ncnt - 3;
+					memcpy(sEncodes, sFind, ncnt);
+				}
+			}
+		} while (0);
+
+		delete [] sfileData;
+	}
+	else
+	{
+		return -1;
+	}
+
+	char sOut[1000];
+	char sOut1[1000];
+	decodeData(sOut, sEncodes, (char*)pKey1);
+
+	decodeData(sOut1, sOut, (char*)pKey2);
+
+	char sMac[12];
+	memcpy(sMac, sOut1, 12);
+
+	BYTE byteCode = 0;
+	memcpy(&byteCode, &sOut1[12], 1);
+
+	char sTimeDecode[20];
+	memcpy(sTimeDecode, &sOut1[13], 19);
+
+	for (int i =0; i < 12; i++)
+	{
+		if (sMac[i] != sMacMe[i])
+		{
+			_exit(0);
+		}
+	}
+
+	if (byteCode == 't')
+	{
+		time_t tm1 = StringToDatetime(sTimeDecode);
+		time_t t = time(NULL); //获取目前秒时间  
+
+		if (tm1 < t)
+		{
+			//outtimes
+			_exit(0);
+		}
+	}
+	else
+		if (byteCode != 'l')
+		{
+			_exit(0);
+		}
+
+	return 0;
+}
+
+
+#ifdef MAKELIC_MODE
+int __stdcall makeLicFile(char * sFile, const char *pKey1, const char *pKey2, const char * macCode, const char* sLicTime, char licType)
+{
+	char sData[1024] = {0};
+	memset(sData, 0, 1024);
+
+	assert(strlen(macCode) == 12);
+	assert(strlen(sLicTime) == 19);
+
+	char _st[2];
+	_st[0] = licType;
+	_st[0] = 0;
+	strcat(sData, macCode);
+	strcat(sData, _st);
+	strcat(sData, sLicTime);
+
+	char sData_e[1024] = {0};
+	encodeData(sData_e, sData, (char*)pKey2);
+
+	char sData_e2[1024] = {0};
+	encodeData(sData_e2, sData_e, (char*)pKey1);
+
+	FILE * fp = fopen(sFile, "wb");
+	if (fp)
+	{
+		char * sfileData = new char[strlen(sData_e2) + 100];
+		strcat(sfileData, sLicTime);
+		strcat(sfileData, "\r\n");
+		strcat(sfileData, sData_e2);
+		fwrite(sfileData, 1, strlen(sfileData), fp);
+		delete [] sfileData;
+		fclose(fp);
+	}
+
+	return 0;
+}
+#endif
+
+
+int __stdcall MacEncode(char * sOut, const char * sMac, const char *pKey1, const char *pKey2)
+{
+	char sBuf[1024];
+	if(encodeData(sBuf, sMac, (char*)pKey1) == -1)
+	{
+		return -1;
+	}
+
+	encodeData(sOut, sBuf, (char*)pKey2);
+	return 0;
+}
+
+int __stdcall MacDecode(char * sMacOut, const char * sEncodeMac, const char *pKey1, const char *pKey2)
+{
+	char sBuf[1024];
+	if(decodeData(sBuf, sEncodeMac, (char*)pKey2) == -1)
+	{
+		return -1;
+	}
+	OutputDebugStringA(sBuf);
+	OutputDebugStringA("\n");
+
+	encodeData(sMacOut, sBuf, (char*)pKey1);
+
+	OutputDebugStringA(sMacOut);
+	OutputDebugStringA("\n");
+	return 0;
 }
