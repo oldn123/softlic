@@ -1,13 +1,11 @@
 #pragma once
 
 #ifdef _CHECKLIC_MODE
-#define CHECKLIC_MODE
 int __stdcall decodeData(char * sOutBuffer, const char *pInputStr, char *sKey);
 int __stdcall checkLicFile(char * sFile, const char *pKey1, const char *pKey2);
 #endif
 
 #ifdef _MAKELIC_MODE
-#define MAKELIC_MODE
 int __stdcall encodeData(char * sOutBuffer, const char *pInputStr, char *sKey);
 int __stdcall makeLicFile(char * sFile, const char *pKey1, const char *pKey2, const char * macCode, const char* sLicTime, char licType);
 #endif

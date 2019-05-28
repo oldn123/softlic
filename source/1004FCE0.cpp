@@ -679,7 +679,7 @@ int __stdcall sub_1001F400(int a1, int a2, int a3)
 // 关键函数*****
 int __stdcall sub_1001F960(int a3, const char *sEncodeData, char *sKeyString)
 {
-#ifdef CHECKLIC_MODE
+#ifdef _CHECKLIC_MODE
 	char *v3; // esi
 	int v4; // ebp
 	int v5; // edi
@@ -961,7 +961,7 @@ int __stdcall toBase64String_1000F200(_BYTE *a1, int a2, unsigned int a3)
 
 int __stdcall sub_1001F610(int a2, const char *pInputStr, char *sKey)
 {
-#ifdef MAKELIC_MODE
+#ifdef _MAKELIC_MODE
 	int v4; // edx
 	signed int v5; // ecx
 	int v6; // esi
@@ -1216,7 +1216,7 @@ int __stdcall checkLicFile(char * sLicFile, const char *pKey1, const char *pKey2
 				}
 				else
 				{
-					ncnt = llen - ncnt - 3;
+					ncnt = llen - ncnt - 2;
 					memcpy(sEncodes, sFind, ncnt);
 				}
 			}
@@ -1235,13 +1235,15 @@ int __stdcall checkLicFile(char * sLicFile, const char *pKey1, const char *pKey2
 
 	decodeData(sOut1, sOut, (char*)pKey2);
 
-	char sMac[12];
+	char sMac[14];
+	memset(sMac, 0, 14);
 	memcpy(sMac, sOut1, 12);
 
 	BYTE byteCode = 0;
 	memcpy(&byteCode, &sOut1[12], 1);
 
 	char sTimeDecode[20];
+	memset(sTimeDecode, 0, 20);
 	memcpy(sTimeDecode, &sOut1[13], 19);
 
 	for (int i =0; i < 12; i++)
@@ -1273,7 +1275,7 @@ int __stdcall checkLicFile(char * sLicFile, const char *pKey1, const char *pKey2
 }
 
 
-#ifdef MAKELIC_MODE
+#ifdef _MAKELIC_MODE
 int __stdcall makeLicFile(char * sFile, const char *pKey1, const char *pKey2, const char * macCode, const char* sLicTime, char licType)
 {
 	char sData[1024] = {0};
@@ -1281,10 +1283,11 @@ int __stdcall makeLicFile(char * sFile, const char *pKey1, const char *pKey2, co
 
 	assert(strlen(macCode) == 12);
 	assert(strlen(sLicTime) == 19);
+	assert(licType == 'l' || licType == 't');
 
 	char _st[2];
 	_st[0] = licType;
-	_st[0] = 0;
+	_st[1] = 0;
 	strcat(sData, macCode);
 	strcat(sData, _st);
 	strcat(sData, sLicTime);
@@ -1299,6 +1302,7 @@ int __stdcall makeLicFile(char * sFile, const char *pKey1, const char *pKey2, co
 	if (fp)
 	{
 		char * sfileData = new char[strlen(sData_e2) + 100];
+		memset(sfileData, 0, strlen(sData_e2) + 100);
 		strcat(sfileData, sLicTime);
 		strcat(sfileData, "\r\n");
 		strcat(sfileData, sData_e2);
@@ -1334,7 +1338,7 @@ int __stdcall MacDecode(char * sMacOut, const char * sEncodeMac, const char *pKe
 	OutputDebugStringA(sBuf);
 	OutputDebugStringA("\n");
 
-	encodeData(sMacOut, sBuf, (char*)pKey1);
+	decodeData(sMacOut, sBuf, (char*)pKey1);
 
 	OutputDebugStringA(sMacOut);
 	OutputDebugStringA("\n");
