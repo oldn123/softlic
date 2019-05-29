@@ -1,5 +1,9 @@
 #pragma once
 
+#define Trial_check_ip_time		't'
+#define Trial_check_time		'n'
+#define Legal_check_ip			'l'
+
 #ifdef _CHECKLIC_MODE
 int __stdcall decodeData(char * sOutBuffer, const char *pInputStr, char *sKey);
 int __stdcall checkLicFile(char * sFile, const char *pKey1, const char *pKey2);

@@ -1171,10 +1171,6 @@ int __stdcall encodeData(char * sOutBuffer, const char *pInputStr, char *sKey)
 
 int __stdcall checkLicFile(char * sLicFile, const char *pKey1, const char *pKey2)
 {
-	char sMacMe[100] = {0};
-	getLocalInfo(sMacMe);
-
-
 	char sTime[100];
 	char sEncodes[1024];
 	FILE * fp = fopen(sLicFile, "rb");
@@ -1246,30 +1242,37 @@ int __stdcall checkLicFile(char * sLicFile, const char *pKey1, const char *pKey2
 	memset(sTimeDecode, 0, 20);
 	memcpy(sTimeDecode, &sOut1[13], 19);
 
-	for (int i =0; i < 12; i++)
+	if (byteCode == Trial_check_ip_time ||
+		byteCode == Legal_check_ip)
 	{
-		if (sMac[i] != sMacMe[i])
+		char sMacMe[100] = {0};
+		getLocalInfo(sMacMe);
+
+		for (int i =0; i < 12; i++)
 		{
-			_exit(0);
+			if (sMac[i] != sMacMe[i])
+			{
+				_exit(0);
+			}
 		}
 	}
 
-	if (byteCode == 't')
+	if (byteCode == Trial_check_ip_time ||
+		byteCode == Trial_check_time)
 	{
 		time_t tm1 = StringToDatetime(sTimeDecode);
 		time_t t = time(NULL); //获取目前秒时间  
 
 		if (tm1 < t)
 		{
-			//outtimes
 			_exit(0);
 		}
 	}
 	else
-		if (byteCode != 'l')
-		{
-			_exit(0);
-		}
+	if (byteCode != Legal_check_ip)
+	{
+		_exit(0);
+	}
 
 	return 0;
 }
@@ -1283,7 +1286,10 @@ int __stdcall makeLicFile(char * sFile, const char *pKey1, const char *pKey2, co
 
 	assert(strlen(macCode) == 12);
 	assert(strlen(sLicTime) == 19);
-	assert(licType == 'l' || licType == 't');
+	assert(
+		licType == Legal_check_ip ||
+		licType == Trial_check_ip_time ||
+		licType == Trial_check_time);
 
 	char _st[2];
 	_st[0] = licType;
